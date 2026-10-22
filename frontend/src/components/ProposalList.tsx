@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Proposal, ProposalState } from '../types';
 import QuorumProgressBar from './QuorumProgressBar';
+import { sanitizeText } from '../utils/sanitize';
 
 const sortOptions = [
   { value: 'newest', label: 'Newest' },
@@ -159,7 +160,7 @@ export default function ProposalList({ proposals }: Props) {
                 <tr key={proposal.id}>
                   <td>{proposal.id}</td>
                   <td>
-                    <Link to={`/proposals/${proposal.id}`}>{proposal.title}</Link>
+                    <Link to={`/proposals/${proposal.id}`}>{sanitizeText(proposal.title)}</Link>
                   </td>
                   <td>
                     <span className={statusClass(proposal.state)}>{labelForState(proposal.state)}</span>

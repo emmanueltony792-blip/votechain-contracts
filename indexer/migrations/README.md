@@ -147,3 +147,4 @@ After rolling back:
 | 001     | `001_init.sql`              | Initial schema: `indexer_cursor`, `contract_events`, indexes |
 | 002     | `002_add_voter_index.sql`   | Add `voter_address` column and index for voter vote history |
 | 003     | `003_dedupe_events.sql`     | Remove duplicate events and add a unique index so `ON CONFLICT DO NOTHING` de-duplicates |
+| 004     | `004_admin_audit_log.sql`   | Append-only `admin_audit_log` table for admin governance operations (issue #321) |

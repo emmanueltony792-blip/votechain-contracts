@@ -156,6 +156,33 @@ Any topic not in this list is logged as `unknown event topic — skipping`
 and is **not** persisted, but the ingestion cursor still advances past it
 (see [Troubleshooting](#unknown-event-topic-warnings)).
 
+### Admin audit log (issue #321)
+
+In addition to persisting all contract events in `contract_events`, the
+indexer also writes an entry to the append-only `admin_audit_log` table
+(migration `004_admin_audit_log.sql`) for every admin governance operation:
+
+| Event topic | `admin_audit_log.operation` |
+|-------------|-----------------------------|
+| `cancelled` | `cancel`                    |
+| `executed`  | `execute`                    |
+| `qupdate`   | `update_quorum`             |
+| `admxfer`   | `transfer_admin`            |
+| `paused`    | `pause`                     |
+| `unpaused`  | `unpause`                    |
+
+Each row records:
+
+- `timestamp` — when the entry was recorded
+- `admin_address` — the admin's Stellar address
+- `operation` — the admin operation performed
+- `proposal_id` — the affected proposal (NULL for pause/unpause/transfer_admin)
+- `tx_hash` — the on-chain transaction hash
+
+The table is **append-only** — the indexer only INSERTs. No UPDATE or DELETE
+is ever issued. The backend exposes this log via `GET /admin/audit-log`
+(admin-auth required).
+
 ## The cursor mechanism
 
 The indexer tracks ingestion progress per contract in the `indexer_cursor`

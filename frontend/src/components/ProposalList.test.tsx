@@ -180,16 +180,30 @@ describe('ProposalList', () => {
   });
 });
 
-// ── Security (issue #96) ──────────────────────────────────────
+// ── Security (issues #96, #320) ──────────────────────────────
 
 describe('ProposalList XSS safety', () => {
-  it('renders a malicious title as escaped text, not executable HTML', () => {
-    const payload = '<script>alert(1)</script>';
+  it('renders a malicious title as sanitised plain text, not executable HTML (#320)', () => {
+    // Use a payload where DOMPurify strips the script tag but preserves
+    // surrounding text so we can verify the text content survives.
+    const payload = '<script>alert(1)</script>Clean Title';
     const { container } = renderList([
       makeProposal({ title: payload, description: '<img src=x onerror=alert(1)>' }),
     ]);
-    expect(screen.getAllByText(payload, { exact: false }).length).toBeGreaterThan(0);
+    // After sanitisation the <script> tag is stripped; "Clean Title" remains.
+    expect(screen.getByText('Clean Title')).toBeInTheDocument();
+    // No executable HTML elements should exist in the DOM.
     expect(container.querySelector('script')).toBeNull();
     expect(container.querySelector('img[onerror]')).toBeNull();
+  });
+
+  it('renders an onclick handler as inert text, not an executable element (#320)', () => {
+    const { container } = renderList([
+      makeProposal({ title: '<div onclick="alert(1)">Click me</div>' }),
+    ]);
+    // The onclick attribute must not appear anywhere in the DOM.
+    expect(container.querySelector('[onclick]')).toBeNull();
+    // The text content survives sanitisation.
+    expect(screen.getByText('Click me')).toBeInTheDocument();
   });
 });

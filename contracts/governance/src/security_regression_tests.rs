@@ -245,3 +245,120 @@ fn sec_010_reentrant_cast_vote_from_transfer_hook_reverts() {
     assert!(!gov.has_voted(&pid, &voter));
     assert_eq!(gov.get_proposal(&pid).votes_yes, 0);
 }
+
+// ── SEC-009: network isolation — voting token immutability (#322) ─────────────
+
+/// #322: Verifies that the `VotingToken` address cannot be changed after
+/// initialisation.  The test:
+///
+/// 1. Deploys two token contracts and initialises governance with the first.
+/// 2. Records the voting token via `get_config`.
+/// 3. Attempts to re-initialise with the second token (different address).
+/// 4. Confirms the call reverts with `AlreadyInitialized`.
+/// 5. Confirms `get_config` still reports the original voting token.
+/// 6. Confirms voting weight is still derived from the original token, not
+///    the second token — i.e. the contract is isolated from the re-init attempt.
+#[test]
+fn sec_009_network_isolation_voting_token_immutable() {
+    let t = setup_env();
+
+    // Deploy a second token that we will try (and fail) to swap in.
+    let alt_token_id = t.env.register(votechain_token::TokenContract, ());
+    let alt_token = votechain_token::TokenContractClient::new(&t.env, &alt_token_id);
+    let alt_admin = Address::generate(&t.env);
+    alt_token.initialize(&alt_admin, &10_000_000);
+
+    // Record the original voting token address.
+    let original_config = t.client.get_config().unwrap();
+    let original_token = original_config.voting_token;
+    assert_eq!(original_token, t.token_id);
+
+    // Attempt re-initialisation with the alternative token — must fail.
+    let res = t.client.try_initialize(
+        &t.admin,
+        &alt_token_id,
+        &0_i128,
+        &0_u64,
+        &60_u64,
+        &2_592_000_u64,
+        &false,
+        &0_u64,
+        &0_u64,
+    );
+    assert_eq!(res, Err(Ok(ContractError::AlreadyInitialized)));
+
+    // The voting token address must be unchanged.
+    let config_after = t.client.get_config().unwrap();
+    assert_eq!(
+        config_after.voting_token, original_token,
+        "VotingToken must not change after a failed re-init attempt"
+    );
+
+    // Voting weight must still come from the original token.
+    // Mint tokens on the original token → vote should succeed with that weight.
+    // Mint tokens on the alt token → they must not grant voting power.
+    let voter = Address::generate(&t.env);
+    TokenContractClient::new(&t.env, &t.token_id).mint(&t.admin, &voter, &100);
+    alt_token.mint(&alt_admin, &voter, &999_999);
+
+    let pid = create_test_proposal(&t, &t.admin);
+    t.client.cast_vote(&voter, &pid, &Vote::Yes, &None);
+
+    let vote_record = t.client.get_vote(&pid, &voter).unwrap();
+    assert_eq!(
+        vote_record.weight, 100,
+        "vote weight must be 100 (original token balance), not 999_999 (alt token)"
+    );
+    assert_eq!(t.client.get_proposal(&pid).votes_yes, 100);
+}
+
+/// #322: Verifies that multiple re-initialisation attempts with different
+/// parameters (token, admin, durations) all fail and leave the original
+/// configuration completely untouched.
+#[test]
+fn sec_009_network_isolation_repeated_reinit_preserves_config() {
+    let t = setup_env();
+    let original_config = t.client.get_config().unwrap();
+
+    let alt_token = Address::generate(&t.env);
+    let alt_admin = Address::generate(&t.env);
+
+    // Three attempts with varying parameters.
+    for i in 0..3 {
+        let res = t.client.try_initialize(
+            &alt_admin,
+            &alt_token,
+            &(1_000_000_i128),
+            &(3600_u64),
+            &(120_u64),
+            &(1_000_000_u64),
+            &true,
+            &(600_u64),
+            &((i + 1) as u64),
+        );
+        assert_eq!(res, Err(Ok(ContractError::AlreadyInitialized)));
+    }
+
+    // Every config field must be unchanged.
+    let config_after = t.client.get_config().unwrap();
+    assert_eq!(config_after.admin, original_config.admin);
+    assert_eq!(config_after.voting_token, original_config.voting_token);
+    assert_eq!(
+        config_after.min_proposal_balance,
+        original_config.min_proposal_balance
+    );
+    assert_eq!(
+        config_after.proposal_cooldown,
+        original_config.proposal_cooldown
+    );
+    assert_eq!(
+        config_after.restrict_admin_vote,
+        original_config.restrict_admin_vote
+    );
+    assert_eq!(
+        config_after.timelock_duration,
+        original_config.timelock_duration
+    );
+    assert_eq!(config_after.min_duration, original_config.min_duration);
+    assert_eq!(config_after.max_duration, original_config.max_duration);
+}

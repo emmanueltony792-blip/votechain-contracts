@@ -116,8 +116,16 @@ interface SimulateResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// HTML tag validation (issue #320)
 // ---------------------------------------------------------------------------
+
+/**
+ * Regex matching common HTML tag patterns.
+ *
+ * Matches `<tag>`, `<tag attr="value">`, `</tag>`, `<!-- comment -->`,
+ * and self-closing `<tag/>`.
+ */
+const HTML_TAG_RE = /<\s*\/?\s*[a-zA-Z][^>]*>/;
 
 /**
  * Returns true when `value` is a finite, non-negative number.
@@ -128,7 +136,22 @@ function isNonNegativeFinite(value: unknown): value is number {
 }
 
 /**
+ * Validates that a string value does not contain HTML tags.
+ * Issue #320: the simulate endpoint must reject requests containing
+ * HTML in any string field to prevent stored XSS via the API.
+ *
+ * @returns An error message if HTML tags are detected, or null if clean.
+ */
+function containsHtmlTags(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return HTML_TAG_RE.test(value);
+}
+
+/**
  * Validates and parses the POST /simulate request body.
+ *
+ * Issue #320: also rejects requests containing HTML tags in any string
+ * field to prevent stored XSS via the API.
  *
  * @returns Parsed fields or a human-readable error message string.
  */
@@ -149,6 +172,13 @@ function parseBody(body: unknown): SimulateRequest | string {
   for (const field of fields) {
     if (!isNonNegativeFinite(b[field])) {
       return `Field '${field}' must be a non-negative finite number`;
+    }
+  }
+
+  // Issue #320: reject HTML tags in any string field to prevent stored XSS.
+  for (const [key, val] of Object.entries(b)) {
+    if (typeof val === "string" && containsHtmlTags(val)) {
+      return `Field '${key}' contains HTML tags, which are not allowed`;
     }
   }
 

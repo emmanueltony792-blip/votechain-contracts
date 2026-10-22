@@ -258,10 +258,20 @@ function renderCard(p) {
 
 /**
  * Escape HTML special characters to prevent XSS.
+ *
+ * Issue #320: When DOMPurify is available (bundled build), use it for
+ * defence-in-depth.  The manual escape remains as a fallback for the
+ * non-bundled `proposals.js` script loaded from index.html.
+ *
  * @param {string} str
  * @returns {string}
  */
 function escapeHtml(str) {
+  // DOMPurify available (bundled build) — strip all HTML tags.
+  if (typeof DOMPurify !== 'undefined') {
+    return DOMPurify.sanitize(str, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+  }
+  // Manual fallback for the non-bundled script.
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

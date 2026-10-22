@@ -18,6 +18,7 @@ import { TransactionToast } from "../components/TransactionToast";
 import { VoteConfirmationDialog, VoteChoice } from "../components/VoteConfirmationDialog";
 import { useTransactionStatus } from "../hooks/useTransactionStatus";
 import { useWallet } from "../context/WalletContext";
+import { sanitizeText } from "../utils/sanitize";
 import type { RawProposal } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -187,14 +188,14 @@ function ProposalCard({ proposal, voted, onVote, submitting }: ProposalCardProps
   return (
     <article
       className="proposal-card"
-      aria-label={`Proposal ${proposal.id}: ${proposal.title}`}
+      aria-label={`Proposal ${proposal.id}: ${sanitizeText(proposal.title)}`}
     >
       <header className="card-header">
         <div className="card-title-row">
           <span className="proposal-id" aria-label="Proposal ID">
             #{proposal.id}
           </span>
-          <h3 className="proposal-title">{proposal.title}</h3>
+          <h3 className="proposal-title">{sanitizeText(proposal.title)}</h3>
         </div>
         <span
           className="state-badge badge-active"
@@ -258,7 +259,7 @@ function ProposalCard({ proposal, voted, onVote, submitting }: ProposalCardProps
               className={`vote-btn vote-btn--${choice.toLowerCase()}`}
               onClick={() => onVote(choice)}
               disabled={submitting}
-              aria-label={`Vote ${choice} on proposal ${proposal.id}: ${proposal.title}`}
+              aria-label={`Vote ${choice} on proposal ${proposal.id}: ${sanitizeText(proposal.title)}`}
             >
               {choice}
             </button>
@@ -430,7 +431,7 @@ export default function VotingPanel() {
       {/* Vote confirmation dialog */}
       {pendingProposal && pendingChoice && (
         <VoteConfirmationDialog
-          proposalTitle={pendingProposal.title}
+          proposalTitle={sanitizeText(pendingProposal.title)}
           choice={pendingChoice}
           estimatedFee="0.00001 XLM"
           onConfirm={confirmVote}
